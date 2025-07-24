@@ -1,0 +1,306 @@
+/* Safe Connect CSS - Styling for secure, decentralized messaging service */
+
+/* Reset default styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #f7fafc;
+    color: #2d3748;
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Container for all content */
+.container {
+    max-width: 600px;
+    width: 90%;
+    margin: 2rem auto;
+    padding: 1.5rem;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Header */
+header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+h1 {
+    font-size: 2rem;
+    color: #2b6cb0;
+}
+
+.subtitle {
+    font-size: 1.1rem;
+    color: #4a5568;
+}
+
+/* Screen styles */
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
+
+/* Welcome Screen */
+.info-box {
+    background: #edf2f7;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.safety-features {
+    list-style: none;
+    margin: 1rem 0;
+}
+
+.safety-features li {
+    margin: 0.5rem 0;
+    color: #276749;
+}
+
+.warning {
+    color: #c53030;
+    font-weight: 500;
+}
+
+/* Messaging Screen */
+.message-area {
+    background: #f7fafc;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.chat-header span {
+    font-weight: 500;
+    color: #2b6cb0;
+}
+
+.exit-btn {
+    background: #c53030;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.exit-btn:hover {
+    background: #9b2c2c;
+}
+
+.messages-container {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.system-message, .user-message {
+    margin: 0.5rem 0;
+}
+
+.system-message p {
+    color: #4a5568;
+    font-style: italic;
+}
+
+.user-message p {
+    color: #2b6cb0;
+}
+
+.input-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+#message-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    resize: none;
+    font-size: 1rem;
+}
+
+.button-group {
+    display: flex;
+    gap: 1rem;
+}
+
+/* Buttons */
+.primary-btn, .secondary-btn, .exit-option {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+}
+
+.primary-btn {
+    background: #2b6cb0;
+    color: white;
+}
+
+.primary-btn:hover {
+    background: #2c5282;
+}
+
+.secondary-btn {
+    background: #e2e8f0;
+    color: #2d3748;
+}
+
+.secondary-btn:hover {
+    background: #cbd5e0;
+}
+
+.exit-option {
+    background: #edf2f7;
+    color: #2d3748;
+    width: 100%;
+}
+
+.exit-option:hover {
+    background: #cbd5e0;
+}
+
+/* Exit Screen */
+.exit-info {
+    text-align: center;
+}
+
+.resources {
+    margin: 1.5rem 0;
+}
+
+.resources ul {
+    list-style: none;
+    text-align: left;
+}
+
+.resources li {
+    margin: 0.5rem 0;
+}
+
+/* Quick Exit Overlay */
+.overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.overlay.active {
+    display: flex;
+}
+
+.overlay-content {
+    background: #ffffff;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+}
+
+.overlay-content h3 {
+    margin-bottom: 1rem;
+}
+
+.overlay-content button {
+    margin: 0.5rem 0;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .container {
+        width: 95%;
+        margin: 1rem auto;
+        padding: 1rem;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    .messages-container {
+        max-height: 200px;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    body {
+        background: #000000;
+        color: #ffffff;
+    }
+
+    .container {
+        background: #1a1a1a;
+        border: 1px solid #ffffff;
+    }
+
+    .info-box, .message-area, .overlay-content {
+        background: #333333;
+        border: 1px solid #ffffff;
+    }
+
+    .primary-btn {
+        background: #00aaff;
+    }
+
+    .secondary-btn, .exit-option {
+        background: #666666;
+        color: #ffffff;
+    }
+
+    .exit-btn {
+        background: #ff3333;
+    }
+}
