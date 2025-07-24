@@ -1,326 +1,148 @@
-// Secure Messaging Service JavaScript
-// Decentralized implementation with Matrix protocol and Sniffies-like anonymity/data erasure
+// server.js (Simplified for core concept)
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const path = require('path');
+const matrixcs = require('matrix-js-sdk'); // Import Matrix SDK for the server
 
-class SecureMessagingService {
-    constructor() {
-        this.sessionId = this.generateSecureId();
-        this.messages = [];
-        this.isSessionActive = false;
-        this.matrixClient = null;
-        this.roomId = "!public-safe-connect-room:matrix.org"; // Replace with your Matrix room ID
-        this.supportUser = "@adminconnet:matrix.org"; // Support specialist
-        this.escapeCount = 0;
-        this.initializeEventListeners();
-        this.setupSecurityFeatures();
-    }
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-    generateSecureId() {
-        const array = new Uint8Array(16);
-        crypto.getRandomValues(array);
-        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-    }
+// --- Matrix Bot Configuration (on your server) ---
+const MATRIX_HOME_SERVER_URL = "https://matrix.org"; // Or your own homeserver
+const BOT_USER_ID = "@safeconnect_bot:matrix.org"; // Your dedicated bot account
+const BOT_PASSWORD = "YOUR_BOT_PASSWORD"; // IMPORTANT: Use environment variables in production!
+const ADVOCATE_USER_ID = "@adminconnet:matrix.org"; // Your advocate's Matrix ID
 
-    async initializeMatrixClient() {
-        try {
-            // Initialize Matrix client for anonymous guest access
-            this.matrixClient = matrixcs.createClient({
-                baseUrl: "https://matrix.org",
-                deviceId: this.sessionId,
+let matrixBotClient = null;
+let advocateDmRoomId = null; // To store the DM room ID with the advocate
+
+// Map to store WebSocket connections and their associated Matrix session details
+const activeVictimSessions = new Map(); // sessionId -> { ws, matrixDmRoomId, advocateMatrixId }
+
+// --- Initialize Matrix Bot ---
+async function initializeMatrixBot() {
+    matrixBotClient = matrixcs.createClient({
+        baseUrl: MATRIX_HOME_SERVER_URL,
+        userId: BOT_USER_ID,
+        accessToken: null // Will get after login
+    });
+
+    try {
+        // Login the bot account
+        const loginResponse = await matrixBotClient.login('m.login.password', {
+            user: BOT_USER_ID,
+            password: BOT_PASSWORD
+        });
+        matrixBotClient.setAccessToken(loginResponse.access_token);
+        matrixBotClient.setDeviceId(loginResponse.device_id);
+
+        await matrixBotClient.startClient();
+        console.log(`Matrix bot "${BOT_USER_ID}" logged in and started.`);
+
+        // Find or create the direct message room with the advocate
+        const rooms = matrixBotClient.getRooms();
+        for (const room of rooms) {
+            if (room.getMembers().some(m => m.userId === ADVOCATE_USER_ID) && room.isDirect) {
+                advocateDmRoomId = room.roomId;
+                console.log(`Found existing DM with advocate: ${advocateDmRoomId}`);
+                break;
+            }
+        }
+
+        if (!advocateDmRoomId) {
+            // Create a new DM room if one doesn't exist
+            const dmRoom = await matrixBotClient.createRoom({
+                visibility: "private",
+                preset: "trusted_private_chat",
+                is_direct: true,
+                invite: [ADVOCATE_USER_ID]
             });
+            advocateDmRoomId = dmRoom.room_id;
+            console.log(`Created new DM with advocate: ${advocateDmRoomId}`);
+            await matrixBotClient.sendTextMessage(advocateDmRoomId, `Hello! I am the Safe Connect Bot. Anonymous users will connect through me. Say 'hi' to start.`);
+        }
 
-            // Register as guest (Sniffies-like anonymous profile)
-            const { user_id, access_token } = await this.matrixClient.registerGuest();
-            this.matrixClient.setAccessToken(access_token);
-            this.matrixClient.setGuest(true);
-            await this.matrixClient.startClient();
+        // Listen for messages from the advocate in the DM room
+        matrixBotClient.on("Room.timeline", (event, room, toStartOfTimeline) => {
+            if (event.getType() === "m.room.message" && room.roomId === advocateDmRoomId && event.getSender() === ADVOCATE_USER_ID) {
+                const content = event.getContent();
+                const text = content.body;
+                console.log(`Received message from advocate: ${text}`);
 
-            // Join the predefined public room
-            await this.matrixClient.joinRoom(this.roomId);
-
-            // Notify support specialist of new session
-            await this.matrixClient.sendTextMessage(
-                this.roomId,
-                `New anonymous user (${user_id}) has joined the session.`
-            );
-
-            // Listen for incoming messages
-            this.matrixClient.on("Room.timeline", (event, room, toStartOfTimeline) => {
-                if (event.getType() === "m.room.message" && room.roomId === this.roomId) {
-                    const content = event.getContent();
-                    if (content.body && event.getSender() === this.supportUser) {
-                        this.addSupportMessage(content.body);
+                // FOR MVP: If you have only ONE active victim at a time:
+                // Relay this message to the active victim.
+                if (activeVictimSessions.size > 0) {
+                    const firstVictimSession = activeVictimSessions.values().next().value;
+                    if (firstVictimSession.ws.readyState === WebSocket.OPEN) {
+                        firstVictimSession.ws.send(JSON.stringify({ type: 'chat', sender: 'Advocate', text: text }));
                     }
                 }
-            });
-
-            this.addSystemMessage("Connected to secure, anonymous, decentralized messaging environment. A support specialist (@adminconnet) will respond soon.");
-        } catch (error) {
-            console.error("Matrix initialization failed:", error);
-            this.showNotification("Failed to connect. Please try again.");
-        }
-    }
-
-    initializeEventListeners() {
-        document.getElementById('start-btn').addEventListener('click', () => this.startSession());
-        document.getElementById('restart-btn').addEventListener('click', () => this.restartSession());
-        document.getElementById('send-btn').addEventListener('click', () => this.sendMessage());
-        document.getElementById('clear-btn').addEventListener('click', () => this.clearMessage());
-        document.getElementById('quick-exit').addEventListener('click', () => this.showQuickExit());
-        document.getElementById('cancel-exit').addEventListener('click', () => this.hideQuickExit());
-        document.getElementById('exit-google').addEventListener('click', () => this.quickExit('google'));
-        document.getElementById('exit-weather').addEventListener('click', () => this.quickExit('weather'));
-        document.getElementById('exit-close').addEventListener('click', () => this.quickExit('close'));
-        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
-
-        const messageInput = document.getElementById('message-input');
-        messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                this.sendMessage();
+                // FOR MORE ROBUST: Advocate would send "reply to [victim_id]: message"
+                // And your bot would parse that to send to the correct victim WebSocket.
             }
         });
 
-        document.addEventListener('contextmenu', (e) => e.preventDefault());
-
-        // Ensure data erasure on browser close (Sniffies-like)
-        window.addEventListener('beforeunload', () => this.clearAllData());
-    }
-
-    setupSecurityFeatures() {
-        document.body.style.userSelect = 'none';
-        document.getElementById('message-input').style.userSelect = 'text';
-
-        setInterval(() => {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText('').catch(() => {});
-            }
-        }, 30000);
-
-        this.monitorScreenSharing();
-        this.setupSessionTimeout();
-    }
-
-    monitorScreenSharing() {
-        if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-            const originalGetDisplayMedia = navigator.mediaDevices.getDisplayMedia;
-            navigator.mediaDevices.getDisplayMedia = function(...args) {
-                alert('Screen sharing detected. For your safety, please end screen sharing while using this service.');
-                return originalGetDisplayMedia.apply(this, args);
-            };
-        }
-    }
-
-    setupSessionTimeout() {
-        let inactivityTimer;
-        const resetTimer = () => {
-            clearTimeout(inactivityTimer);
-            if (this.isSessionActive) {
-                inactivityTimer = setTimeout(() => {
-                    this.emergencyExit();
-                }, 30 * 60 * 1000); // 30 minutes
-            }
-        };
-        document.addEventListener('mousemove', resetTimer);
-        document.addEventListener('keypress', resetTimer);
-        document.addEventListener('click', resetTimer);
-        resetTimer();
-    }
-
-    async startSession() {
-        this.isSessionActive = true;
-        this.showScreen('messaging-screen');
-        await this.initializeMatrixClient();
-        document.getElementById('message-input').focus();
-    }
-
-    async sendMessage() {
-        const messageInput = document.getElementById('message-input');
-        const messageText = messageInput.value.trim();
-
-        if (!messageText) {
-            this.showNotification('Please enter a message before sending.');
-            return;
-        }
-
-        if (!this.matrixClient) {
-            this.showNotification('Not connected to messaging service. Please restart session.');
-            return;
-        }
-
-        try {
-            await this.matrixClient.sendTextMessage(this.roomId, messageText);
-            this.addUserMessage(messageText);
-            messageInput.value = '';
-            this.scrollToBottom();
-        } catch (error) {
-            console.error("Failed to send message:", error);
-            this.showNotification('Failed to send message. Please try again.');
-        }
-    }
-
-    addUserMessage(text) {
-        const messagesContainer = document.getElementById('messages');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'user-message';
-        messageDiv.innerHTML = `<p><strong>You:</strong> ${this.escapeHtml(text)}</p>`;
-        messagesContainer.appendChild(messageDiv);
-        this.messages.push({ type: 'user', text, timestamp: new Date().toISOString() });
-    }
-
-    addSupportMessage(text) {
-        const messagesContainer = document.getElementById('messages');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'system-message';
-        messageDiv.innerHTML = `<p><strong>Support Specialist:</strong> ${this.escapeHtml(text)}</p>`;
-        messagesContainer.appendChild(messageDiv);
-        this.scrollToBottom();
-    }
-
-    addSystemMessage(text) {
-        const messagesContainer = document.getElementById('messages');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'system-message';
-        messageDiv.innerHTML = `<p>${this.escapeHtml(text)}</p>`;
-        messagesContainer.appendChild(messageDiv);
-    }
-
-    clearMessage() {
-        document.getElementById('message-input').value = '';
-        document.getElementById('message-input').focus();
-    }
-
-    showQuickExit() {
-        document.getElementById('quick-exit-overlay').classList.add('active');
-    }
-
-    hideQuickExit() {
-        document.getElementById('quick-exit-overlay').classList.remove('active');
-    }
-
-    quickExit(type) {
-        this.clearAllData();
-        switch (type) {
-            case 'google':
-                window.location.href = 'https://www.google.com';
-                break;
-            case 'weather':
-                window.location.href = 'https://weather.com';
-                break;
-            case 'close':
-                window.close();
-                setTimeout(() => {
-                    window.location.href = 'about:blank';
-                }, 100);
-                break;
-        }
-    }
-
-    emergencyExit() {
-        this.clearAllData();
-        this.showScreen('exit-screen');
-    }
-
-    clearAllData() {
-        this.messages = [];
-        this.isSessionActive = false;
-        if (this.matrixClient) {
-            try {
-                // Leave the room to ensure no server-side session data persists
-                this.matrixClient.leave(this.roomId).catch(() => {});
-                this.matrixClient.stopClient();
-                this.matrixClient = null;
-            } catch (error) {
-                console.error("Error stopping Matrix client:", error);
-            }
-        }
-        const inputs = document.querySelectorAll('input, textarea');
-        inputs.forEach(input => input.value = '');
-        const messagesContainer = document.getElementById('messages');
-        messagesContainer.innerHTML = '<div class="system-message"><p>You are now in a secure, anonymous, decentralized messaging environment. A support specialist will respond to your message.</p></div>';
-        if (history.replaceState) {
-            history.replaceState(null, null, window.location.href);
-        }
-        if (typeof(Storage) !== "undefined") {
-            localStorage.clear();
-            sessionStorage.clear();
-        }
-    }
-
-    restartSession() {
-        this.clearAllData();
-        this.sessionId = this.generateSecureId();
-        this.showScreen('welcome-screen');
-    }
-
-    showScreen(screenId) {
-        document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.remove('active');
-        });
-        document.getElementById(screenId).classList.add('active');
-    }
-
-    handleKeyboardShortcuts(e) {
-        if (e.key === 'Escape') {
-            this.escapeCount = (this.escapeCount || 0) + 1;
-            setTimeout(() => { this.escapeCount = 0; }, 1000);
-            if (this.escapeCount >= 3) {
-                this.emergencyExit();
-            }
-        }
-        if (e.ctrlKey && e.shiftKey && e.key === 'X') {
-            this.showQuickExit();
-        }
-        if (e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'u')) {
-            e.preventDefault();
-        }
-    }
-
-    scrollToBottom() {
-        const messagesContainer = document.getElementById('messages');
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    showNotification(message) {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #4299e1;
-            color: white;
-            padding: 1rem;
-            border-radius: 8px;
-            z-index: 1001;
-            max-width: 300px;
-        `;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
+    } catch (error) {
+        console.error("Matrix bot initialization failed:", error);
+        // Implement robust error handling (e.g., retry, alert admin)
     }
 }
+initializeMatrixBot(); // Call this to start the bot
 
-document.addEventListener('DOMContentLoaded', () => {
-    new SecureMessagingService();
-});
+// --- WebSocket Server Logic ---
+app.use(express.static(path.join(__dirname, 'public')));
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'F12' || 
-        (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-        (e.ctrlKey && e.shiftKey && e.key === 'C') ||
-        (e.ctrlKey && e.key === 'U')) {
-        e.preventDefault();
-        return false;
+wss.on('connection', ws => {
+    if (!matrixBotClient || !advocateDmRoomId) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Chat service not ready. Please try again later.' }));
+        ws.close();
+        return;
     }
+
+    const sessionId = Math.random().toString(36).substring(2, 15);
+    activeVictimSessions.set(sessionId, { ws: ws }); // Store ws and any other session data
+
+    console.log(`New victim connected with session ID: ${sessionId}`);
+    ws.send(JSON.stringify({ type: 'session_id', id: sessionId }));
+    ws.send(JSON.stringify({ type: 'chat', sender: 'System', text: 'Connected to support. How can we help you anonymously?' }));
+
+    // Notify advocate via Matrix that a new victim has connected
+    matrixBotClient.sendTextMessage(advocateDmRoomId, `New anonymous victim connected (Session ID: ${sessionId}).`)
+        .catch(err => console.error('Failed to notify advocate:', err));
+
+    ws.on('message', message => {
+        const msg = JSON.parse(message);
+        if (msg.type === 'chat' && msg.text) {
+            console.log(`Received message from victim ${sessionId}: ${msg.text}`);
+
+            // Send victim's message to the advocate via Matrix
+            matrixBotClient.sendTextMessage(advocateDmRoomId, `Victim (${sessionId}): ${msg.text}`)
+                .catch(err => console.error('Failed to relay message to advocate:', err));
+
+            // Optional: send back to sender for immediate display (as "You")
+            ws.send(JSON.stringify({ type: 'chat', sender: 'You', text: msg.text }));
+        }
+    });
+
+    ws.on('close', () => {
+        console.log(`Victim disconnected: ${sessionId}`);
+        activeVictimSessions.delete(sessionId);
+        // Optionally notify advocate that victim disconnected
+        matrixBotClient.sendTextMessage(advocateDmRoomId, `Victim (${sessionId}) disconnected.`)
+            .catch(err => console.error('Failed to notify advocate of disconnect:', err));
+    });
+
+    ws.on('error', error => {
+        console.error(`WebSocket error for victim ${sessionId}:`, error);
+        activeVictimSessions.delete(sessionId);
+    });
 });
 
-document.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    return false;
+// ... (ping/pong, port setup, quick exit handling for advocate side if needed) ...
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });
