@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Safe Connect</title>
+    <link rel="stylesheet" href="styles.css">
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- Add Matrix JS SDK -->
+    <script src="https://unpkg.com/matrix-js-sdk@34.2.0/lib/browser/matrix.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔒 Safe Connect</h1>
+            <p class="subtitle">A secure, decentralized space to reach out for help</p>
+        </header>
+
+        <div id="welcome-screen" class="screen active">
+            <div class="info-box">
+                <h2>Your Safety First</h2>
+                <ul class="safety-features">
+                    <li>✓ No registration required</li>
+                    <li>✓ Messages are not stored</li>
+                    <li>✓ Your identity remains anonymous</li>
+                    <li>✓ Quick exit button always available</li>
+                    <li>✓ Decentralized messaging for privacy</li>
+                </ul>
+                <p class="warning">
+                    <strong>Important:</strong> If you're in immediate danger, please call emergency services (911).
+                </p>
+            </div>
+            <button id="start-btn" class="primary-btn">Start Secure Session</button>
+        </div>
+
+        <div id="messaging-screen" class="screen">
+            <div class="message-area">
+                <div class="chat-header">
+                    <span>Secure Connection Active 🔐</span>
+                    <button id="quick-exit" class="exit-btn" title="Quick Exit">✕</button>
+                </div>
+                <div id="messages" class="messages-container">
+                    <div class="system-message">
+                        <p>You are now in a secure, decentralized messaging environment. A support specialist will respond to your message.</p>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <textarea id="message-input" placeholder="Type your message here... You are safe and anonymous." rows="4"></textarea>
+                    <div class="button-group">
+                        <button id="send-btn" class="primary-btn">Send Message</button>
+                        <button id="clear-btn" class="secondary-btn">Clear</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="exit-screen" class="screen">
+            <div class="exit-info">
+                <h2>Session Ended Safely</h2>
+                <p>Your session has been terminated and all data cleared.</p>
+                <div class="resources">
+                    <h3>Emergency Resources:</h3>
+                    <ul>
+                        <li><strong>National Domestic Violence Hotline:</strong> 1-800-799-7233</li>
+                        <li><strong>Crisis Text Line:</strong> Text HOME to 741741</li>
+                        <li><strong>Emergency Services:</strong> 911</li>
+                    </ul>
+                </div>
+                <button id="restart-btn" class="primary-btn">Start New Session</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="quick-exit-overlay" class="overlay">
+        <div class="overlay-content">
+            <h3>Quick Exit Options</h3>
+            <button id="exit-google" class="exit-option">Go to Google</button>
+            <button id="exit-weather" class="exit-option">Go to Weather</button>
+            <button id="exit-close" class="exit-option">Close Tab</button>
+            <button id="cancel-exit" class="secondary-btn">Cancel</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
